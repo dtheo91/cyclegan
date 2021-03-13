@@ -613,3 +613,151 @@ class PixelDiscriminator(nn.Module):
     def forward(self, input):
         """Standard forward."""
         return self.net(input)
+
+##############################################################################
+# GOKASLAN - GENERATOR
+##############################################################################   
+class ResidualBlock_Gokaslan(nn.Module):
+    def __init__(self, in_features, out_features):
+        super(ResidualBlock_Gokaslan, self).__init__()
+
+        self.block1 = nn.Sequential(
+            nn.Conv2d(in_features, out_features, 3, 1, 1),
+            nn.Conv2d(out_features, out_features, 3, 1, 1),
+            )
+        
+        self.block2 = nn.Sequential(
+            nn.Conv2d(in_features+out_features, out_features, 3, 1, 1),
+            )
+
+    def forward(self, x):
+        res =  torch.cat((self.block1(x), x), 1)
+        out = self.block2(res)
+        return out
+    
+class Generator_Gokaslan(nn.Module):
+    def __init__(self, input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks):
+        super(Generator_Gokaslan, self).__init__()
+
+        def downsample(in_feat, out_feat, normalize=True):
+            layers = [nn.Conv2d(in_feat, out_feat, 4, stride=2, padding=1)]
+            if normalize:
+                layers.append(nn.InstanceNorm2d(out_feat))
+            layers.append(nn.LeakyReLU(0.2))
+            return layers
+
+        def upsample(in_feat, out_feat, normalize=True):
+            layers = [nn.ConvTranspose2d(in_feat, out_feat, 4, stride=2, padding=1)]
+            if normalize:
+                layers.append(nn.InstanceNorm2d(out_feat, 0.8))
+            layers.append(nn.ReLU())
+            return layers
+
+        def residual(in_feat, depth = 3):
+            layers = []
+            for i in range(depth):
+                layers.append(ResidualBlock_Gokaslan(in_feat, in_feat))
+            return layers
+
+        nf = ngf
+        d = n_blocks
+
+        self.block1 = nn.Sequential(
+                    nn.Conv2d(input_nc, nf, 4, 2, 1),
+                    nn.LeakyReLU(),
+                    *downsample(nf, 2*nf),
+                    *residual(2*nf, d))
+
+        self.block2 = nn.Sequential(
+                    *downsample(2*nf, 4*nf),
+                    *residual(4*nf, d)
+                    )
+
+        self.block3 = nn.Sequential(
+                    *downsample(4*nf, 8*nf),
+                    *residual(8*nf, d),
+                    *upsample(8*nf, 4*nf),
+                    )
+
+        self.block4 = nn.Sequential(
+                    ResidualBlock(8*nf, 4*nf),
+                    *residual(4*nf, d-1),
+                    *upsample(4*nf, 2*nf)
+                    )
+
+        self.block5 = nn.Sequential(
+                    ResidualBlock(4*nf, 2*nf),
+                    *residual(2*nf, d-1),
+                    *upsample(2*nf, nf),
+                    nn.ConvTranspose2d(nf, output_nc, 4, 2, 1),
+        #                     nn.Sigmoid()
+                    nn.Tanh()
+        )
+      
+    def forward(self, x):
+        y1 = self.block1(x)
+        y2 = self.block2(y1)
+        y3 = self.block3(y2)
+        y4 = torch.cat((y3, y2), 1)
+        y5 = self.block4(y4)
+        y6 = torch.cat((y5, y1), 1)
+        out = self.block5(y6)
+        return out
+
+##############################################################################
+# GOKASLAN - Discriminator
+############################################################################## 
+class Disc_Block(nn.Module):
+    def __init__(self, in_features, out_features, normalize = True, kernel_size = 4, stride = 2, padding = 1):
+        super(Disc_Block, self).__init__()
+
+        layers = [nn.Conv2d(in_features, out_features, kernel_size, stride, padding)]
+        if normalize:
+            layers.append(nn.InstanceNorm2d(out_features))
+        layers.append(nn.LeakyReLU(0.2, inplace=True))
+
+        self.block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.block(x)
+
+class Dilated_Block(nn.Module):
+    def __init__(self, in_features, out_features, dilation = 2, normalize = True, kernel_size = 3, stride = 1):
+        super(Dilated_Block, self).__init__()
+
+        layers = [nn.Conv2d(in_features, out_features, kernel_size, stride, padding = dilation, dilation = dilation)]
+        if normalize:
+            layers.append(nn.InstanceNorm2d(out_features))
+        layers.append(nn.LeakyReLU(0.2, inplace=True))
+
+        self.block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.block(x)
+    
+class Discriminator_Gokaslan(nn.Module):
+    def __init__(self, input_nc, ndf, norm_layer):
+        super(Discriminator_Gokaslan, self).__init__()
+        self.layer1 = Disc_Block(3, 2*nf, normalize = False)
+        self.layer2 = Disc_Block(2*nf, 4*nf)
+        self.layer3 = Disc_Block(4*nf, 8*nf)
+        self.layer4 = Disc_Block(8*nf, 8*nf, True, 3, 1, 1)
+        self.layer5 = Dilated_Block(8*nf, 8*nf, 2)
+        self.layer6 = Dilated_Block(8*nf, 8*nf, 4)
+        self.layer7 = Dilated_Block(8*nf, 8*nf, 8)
+        self.layer9 = Disc_Block(16*nf, 8*nf, True, 3, 1, 1)
+        self.layer10 = nn.Conv2d(8*nf, 1, 3, 1, 1)
+
+    def forward(self, x):
+        l1 = self.layer1(x)
+        l2 = self.layer2(l1)
+        l3 = self.layer3(l2)
+        l4 = self.layer4(l3)
+        l5 = self.layer5(l4)
+        l6 = self.layer6(l5)
+        l7 = self.layer7(l6)
+        l8 = torch.cat((l4, l7), 1)
+        l9 = self.layer9(l8)
+        l10 = self.layer10(l9)
+
+        return l10 #, (l2, l3, l4, l5, l6, l7, l9) 
