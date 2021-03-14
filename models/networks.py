@@ -9,7 +9,6 @@ from torch.optim import lr_scheduler
 # Helper Functions
 ###############################################################################
 
-
 class Identity(nn.Module):
     def forward(self, x):
         return x
@@ -154,6 +153,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    elif netG == 'gokaslan':
+        net = Generator_Gokaslan(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=3)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -198,6 +199,8 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
         net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
     elif netD == 'pixel':     # classify if each pixel is real or fake
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
+    elif netD == 'gokaslan':
+        net = Discriminator_Gokaslan(input_nc, ndf, norm_layer=norm_layer)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -680,13 +683,13 @@ class Generator_Gokaslan(nn.Module):
                     )
 
         self.block4 = nn.Sequential(
-                    ResidualBlock(8*nf, 4*nf),
+                    ResidualBlock_Gokaslan(8*nf, 4*nf),
                     *residual(4*nf, d-1),
                     *upsample(4*nf, 2*nf)
                     )
 
         self.block5 = nn.Sequential(
-                    ResidualBlock(4*nf, 2*nf),
+                    ResidualBlock_Gokaslan(4*nf, 2*nf),
                     *residual(2*nf, d-1),
                     *upsample(2*nf, nf),
                     nn.ConvTranspose2d(nf, output_nc, 4, 2, 1),
@@ -737,6 +740,7 @@ class Dilated_Block(nn.Module):
     
 class Discriminator_Gokaslan(nn.Module):
     def __init__(self, input_nc, ndf, norm_layer):
+        nf = ndf
         super(Discriminator_Gokaslan, self).__init__()
         self.layer1 = Disc_Block(3, 2*nf, normalize = False)
         self.layer2 = Disc_Block(2*nf, 4*nf)
@@ -761,3 +765,41 @@ class Discriminator_Gokaslan(nn.Module):
         l10 = self.layer10(l9)
 
         return l10 #, (l2, l3, l4, l5, l6, l7, l9) 
+    
+##############################################################################
+# GOKASLAN - UTILS
+############################################################################## 
+
+def normalise_loss(loss, update_condition, epsilon = 1e-10):
+    loss_value = 1
+    loss_value_smooth = 1
+
+    # hard-coded the implementation of tf.python.training.moving_averages(variable, value, decay)
+    # variable -= (1 - decay) * (variable - value)
+    decay = 0.9999
+    ma_loss_value = loss_value_smooth - (1 - decay)*(loss_value_smooth - loss)
+
+    loss_value_updated = loss_value
+
+    if update_condition:
+        # loss_value = ma_loss_value
+        loss_value_updated = ma_loss_value
+
+    loss_normalised = loss/(loss_value_updated + epsilon)
+
+    return loss_normalised
+
+def feature_match_loss(feat_real, feat_fake):
+    fml = nn.MSELoss()
+
+    if len(feat_real) != len(feat_fake):
+        return 0
+
+    l = len(feat_real)
+
+    out = []
+    for x, y in zip(feat_real, feat_fake):
+        out.append(fml(x, y))
+    out = torch.mean(torch.Tensor(out).to(self.device))
+
+    return out
