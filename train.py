@@ -40,7 +40,6 @@ if __name__ == '__main__':
         iter_data_time = time.time()    # timer for data loading per iteration
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
-        model.update_learning_rate()    # update learning rates in the beginning of every epoch.
         for i, data in enumerate(dataset):  # inner loop within one epoch
             iter_start_time = time.time()  # timer for computation per iteration
             if total_iters % opt.print_freq == 0:
@@ -49,7 +48,12 @@ if __name__ == '__main__':
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
             model.set_input(data)         # unpack data from dataset and apply preprocessing
-            model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
+            if opt.model == 'gokaslan':
+                batches_done = epoch * len(dataset) + i
+                condition = (batches_done == 36) or (batches_done % 90 == 0)
+                model.optimize_parameters(condition)
+            else:
+                model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
 
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
                 save_result = total_iters % opt.update_html_freq == 0
@@ -75,3 +79,4 @@ if __name__ == '__main__':
             model.save_networks(epoch)
 
         print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
+        model.update_learning_rate()    # update learning rates AT THE END of every epoch (OTHERWISE ERROR THAT STEP AFTER UPDATE FOR FIRST UPDATE.

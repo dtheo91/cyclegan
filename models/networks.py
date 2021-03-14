@@ -764,7 +764,7 @@ class Discriminator_Gokaslan(nn.Module):
         l9 = self.layer9(l8)
         l10 = self.layer10(l9)
 
-        return l10 #, (l2, l3, l4, l5, l6, l7, l9) 
+        return l10, (l2, l3, l4, l5, l6, l7, l9) 
     
 ##############################################################################
 # GOKASLAN - UTILS
@@ -789,7 +789,7 @@ def normalise_loss(loss, update_condition, epsilon = 1e-10):
 
     return loss_normalised
 
-def feature_match_loss(feat_real, feat_fake):
+def feature_match_loss(feat_real, feat_fake, device):
     fml = nn.MSELoss()
 
     if len(feat_real) != len(feat_fake):
@@ -800,6 +800,6 @@ def feature_match_loss(feat_real, feat_fake):
     out = []
     for x, y in zip(feat_real, feat_fake):
         out.append(fml(x, y))
-    out = torch.mean(torch.Tensor(out).to(self.device))
+    out = torch.mean(torch.Tensor(out).to(device))
 
     return out
