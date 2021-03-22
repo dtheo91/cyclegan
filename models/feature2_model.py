@@ -6,9 +6,12 @@ from . import networks
 from torchvision import models
 from . import mssim
 from . import mask_extractor
+import numpy as np 
+import cv2 as cv
+import torchvision
 
 
-def get_simspon_mask(image):
+def get_simpson_mask(img):
     lower_range = np.array([100, 100 ,0])  # Set the Lower range value of color in BGR
     upper_range = np.array([255,217,15])   # Set the Upper range value of color in BGR
     mask = cv.inRange(img,lower_range,upper_range) # Create a mask with range
@@ -18,8 +21,8 @@ def get_simspon_mask(image):
     upper_range = np.array([255,255,255])   # Set the Upper range value of color in BGR
     mask = cv.inRange(img,lower_range,upper_range) # Create a mask with range
     result2 = cv.bitwise_and(img,img,mask = mask)
-    
-    return torchvision.transforms.ToTensor()(torchvision.transforms.Grayscale()(torchvision.transforms.ToPILImage()(result1+result2)))
+
+    return torchvision.transforms.ToTensor()(torchvision.transforms.Grayscale()(torchvision.transforms.ToPILImage()(np.uint8(result1+result2))))
 
 class Feature2Model(BaseModel):
     """
@@ -86,9 +89,9 @@ class Feature2Model(BaseModel):
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+        self.netG_A = networks.define_G(4, opt.output_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.netG_B = networks.define_G(opt.input_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+        self.netG_B = networks.define_G(4, opt.input_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         
         
@@ -142,19 +145,21 @@ class Feature2Model(BaseModel):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         
         # FAKE B
-        self.real_A = torch.cat([self.mask_extractor(self.real_A)[0].detach().argmax(1).unsqueeze(0), self.real_A], dim=1)
-        self.fake_B = self.netG_A(real_mask_A)  # G_A(A)
+        self.real_mask_A = torch.cat([self.mask_extractor(self.real_A)[0].detach().argmax(1).unsqueeze(0), self.real_A], dim=1)
+        self.fake_B = self.netG_A(self.real_mask_A)  # G_A(A)
         
         # RECONSTRUCTION A
-        self.fake_B = torch.cat([get_simpson_mask(self.fake_B.squeeze(0).transpose(0,2)).unsqueeze(0), self.fake_B])
+        fake_mask_B = ((self.fake_B + 1) * 255 / 2).long()
+        fake_mask_B = torch.cat([get_simpson_mask(fake_mask_B.squeeze(0).transpose(0,2).detach().cpu().numpy()).unsqueeze(0).to(self.device), self.fake_B], dim=1)
         self.rec_A = self.netG_B(fake_mask_B)   # G_B(G_A(A))
         
         # FAKE A
-        self.real_B = torch.cat([get_simpson_mask(self.real_B.squeeze(0).transpose(0,2)).unsqueeze(0), self.real_B])
-        self.fake_A = self.netG_B(real_mask_B)  # G_B(B)
+        real_mask_B = ((self.real_B + 1) * 255 / 2).long()
+        self.real_mask_B = torch.cat([get_simpson_mask(real_mask_B.squeeze(0).transpose(0,2).detach().cpu().numpy()).unsqueeze(0).to(self.device), self.real_B], dim=1)
+        self.fake_A = self.netG_B(self.real_mask_B)  # G_B(B)
         
         # RECONSTRUCTION B
-        self.fake_A = torch.cat([self.mask_extractor(self.fake_A)[0].detach().argmax(1).unsqueeze(0), self.fake_A], dim=1)
+        fake_mask_A  = torch.cat([self.mask_extractor(self.fake_A)[0].detach().argmax(1).unsqueeze(0), self.fake_A], dim=1)
         self.rec_B = self.netG_A(fake_mask_A)   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
@@ -197,11 +202,10 @@ class Feature2Model(BaseModel):
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
-            real_B_mask = torch.cat([self.real_B[:,2,:,:].unsqueeze(0), self.real_B], dim=1)
-            self.idt_A = self.netG_A(real_B_mask)
+            self.idt_A = self.netG_A(self.real_mask_B)
             self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed: ||G_B(A) - A||
-            self.idt_B = self.netG_B(self.real_A)
+            self.idt_B = self.netG_B(self.real_mask_A)
             self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
         else:
             self.loss_idt_A = 0
