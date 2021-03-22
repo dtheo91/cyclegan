@@ -39,9 +39,9 @@ class GokaslanModel(BaseModel):
         """
         parser.set_defaults(no_dropout=True)  # default CycleGAN did not use dropout
         if is_train:
-            #parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
-            #parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
-            parser.add_argument('--lambda_identity', type=float, default=0.0, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
+            parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
+            parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
             
             parser.add_argument('--lambda_GAN', type=float, default=0.49, help='Weight for Generator Loss')
             parser.add_argument('--lambda_FM', type=float, default=0.21, help='Weight for Feature Loss')
@@ -159,8 +159,8 @@ class GokaslanModel(BaseModel):
     def backward_G(self, condition):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
-        #lambda_A = self.opt.lambda_A
-        #lambda_B = self.opt.lambda_B
+        lambda_A = self.opt.lambda_A
+        lambda_B = self.opt.lambda_B
         
         lambda_gan = self.opt.lambda_GAN
         lambda_fm = self.opt.lambda_FM
@@ -182,10 +182,10 @@ class GokaslanModel(BaseModel):
             
         # Reconstruction loss
         self.loss_mssim_A = 1 - self.msssim(self.rec_A, self.real_A)
-        self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A)
+        self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) #* lambda_A
         self.loss_mssim_B = 1 - self.msssim(self.rec_B, self.real_B)
-        self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B)
-        self.loss_recon_normalized = networks.normalise_loss(lambda_ss*(self.loss_mssim_A + self.loss_mssim_B) + lambda_l1*(self.loss_cycle_A + self.loss_cycle_B), condition)
+        self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) #* lambda_B
+        self.loss_recon_normalized = networks.normalise_loss(lambda_ss*(self.loss_mssim_A + self.loss_mssim_B) + lambda_l1*(self.loss_cycle_A + self.loss_cycle_B) + (self.loss_idt_A + self.loss_idt_B), condition)
       
         # Feature Matching loss
         _, real_A_features = self.netD_B(self.real_A)
@@ -211,11 +211,12 @@ class GokaslanModel(BaseModel):
         self.loss_G = lambda_gan*self.loss_gan_normalized + lambda_fm*self.loss_fm_normalized + lambda_cyc*self.loss_recon_normalized
         self.loss_G.backward()
 
-    def optimize_parameters(self, condition):
+    def optimize_parameters(self, condition, i):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
         # forward
         self.forward()      # compute fake images and reconstruction images.
         # G_A and G_B
+        #if i % 3:
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
         self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
         self.backward_G(condition)             # calculate gradients for G_A and G_B

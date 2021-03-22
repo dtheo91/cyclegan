@@ -154,7 +154,9 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'gokaslan':
-        net = Generator_Gokaslan(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=3)
+        #net = Generator_Gokaslan(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=3)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+        #net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -344,19 +346,20 @@ class ResnetGenerator(nn.Module):
                  nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
                  norm_layer(ngf),
                  nn.ReLU(True)]
-
+        #model += [attention(ngf)]
         n_downsampling = 2
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
             model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
                       norm_layer(ngf * mult * 2),
                       nn.ReLU(True)]
-
+            
         mult = 2 ** n_downsampling
         for i in range(n_blocks):       # add ResNet blocks
 
             model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
-
+        model += [attention(ngf * mult)]
+        #model += [torch.nn.MultiheadAttention(ngf * mult, 4)]
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
             model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
@@ -414,6 +417,7 @@ class ResnetBlock(nn.Module):
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
 
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim), nn.ReLU(True)]
+        #conv_block += [attention(dim)]
         if use_dropout:
             conv_block += [nn.Dropout(0.5)]
 
@@ -427,7 +431,7 @@ class ResnetBlock(nn.Module):
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim)]
-
+        #conv_block += [attention(dim)]
         return nn.Sequential(*conv_block)
 
     def forward(self, x):
@@ -711,28 +715,30 @@ class Generator_Gokaslan(nn.Module):
 # GOKASLAN - Discriminator
 ############################################################################## 
 class Disc_Block(nn.Module):
-    def __init__(self, in_features, out_features, normalize = True, kernel_size = 4, stride = 2, padding = 1):
+    def __init__(self, in_features, out_features, normalize = True, kernel_size = 4, stride = 2, padding = 1, attention_use=False):
         super(Disc_Block, self).__init__()
 
         layers = [nn.Conv2d(in_features, out_features, kernel_size, stride, padding)]
         if normalize:
             layers.append(nn.InstanceNorm2d(out_features))
         layers.append(nn.LeakyReLU(0.2, inplace=True))
-
+        #if attention_use:
+         #   layers.append(attention(out_features))
         self.block = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.block(x)
 
 class Dilated_Block(nn.Module):
-    def __init__(self, in_features, out_features, dilation = 2, normalize = True, kernel_size = 3, stride = 1):
+    def __init__(self, in_features, out_features, dilation = 2, normalize = True, kernel_size = 3, stride = 1, attention_use=False):
         super(Dilated_Block, self).__init__()
 
         layers = [nn.Conv2d(in_features, out_features, kernel_size, stride, padding = dilation, dilation = dilation)]
         if normalize:
             layers.append(nn.InstanceNorm2d(out_features))
         layers.append(nn.LeakyReLU(0.2, inplace=True))
-
+        #if attention_use:
+         #   layers.append(attention(out_features))
         self.block = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -742,7 +748,7 @@ class Discriminator_Gokaslan(nn.Module):
     def __init__(self, input_nc, ndf, norm_layer):
         nf = ndf
         super(Discriminator_Gokaslan, self).__init__()
-        self.layer1 = Disc_Block(3, 2*nf, normalize = False)
+        self.layer1 = Disc_Block(3, 2*nf, normalize = True)
         self.layer2 = Disc_Block(2*nf, 4*nf)
         self.layer3 = Disc_Block(4*nf, 8*nf)
         self.layer4 = Disc_Block(8*nf, 8*nf, True, 3, 1, 1)
@@ -764,7 +770,7 @@ class Discriminator_Gokaslan(nn.Module):
         l9 = self.layer9(l8)
         l10 = self.layer10(l9)
 
-        return l10, (l2, l3, l4, l5, l6, l7, l9) 
+        return l10 #, (l2, l3, l4, l5, l6, l7, l9) 
     
 ##############################################################################
 # GOKASLAN - UTILS
@@ -803,3 +809,41 @@ def feature_match_loss(feat_real, feat_fake, device):
     out = torch.mean(torch.Tensor(out).to(device))
 
     return out
+
+
+##############################################################################
+# Attention
+############################################################################## 
+
+class attention(nn.Module):
+    """ Self attention Layer"""
+    def __init__(self,in_dim):
+        super(attention,self).__init__()
+        self.chanel_in = in_dim
+        
+        self.query_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
+        self.key_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
+        self.value_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
+        self.avgpooling = nn.AdaptiveAvgPool2d((1,1))
+        self.maxpooling = nn.AdaptiveMaxPool2d((1,1))
+        self.gamma = nn.Parameter(torch.zeros(1))
+
+    def forward(self,x):
+        """
+            inputs :
+                x : input feature maps( B X C X W X H)
+            returns :
+                out : self attention value + input feature 
+                attention: B X N X N (N is Width*Height)
+        """
+        m_batchsize,C,width ,height = x.size()
+        proj_query  = self.query_conv(x)
+        proj_query = self.avgpooling(proj_query).view(m_batchsize,-1,1)
+        proj_key =  self.key_conv(x)
+        proj_key = self.maxpooling(proj_key).view(m_batchsize,-1,1).permute(0,2,1) # B X C x (*W*H)
+        attention =  torch.bmm(proj_query,proj_key) # transpose check
+        proj_value = self.value_conv(x).view(m_batchsize,-1,width*height) # B X C X N
+        out = torch.bmm(proj_value.permute(0,2,1),attention)
+        out = out.view(m_batchsize,C,width,height)
+        out = self.gamma*out + x
+        return out

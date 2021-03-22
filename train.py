@@ -51,7 +51,7 @@ if __name__ == '__main__':
             if opt.model == 'gokaslan':
                 batches_done = epoch * len(dataset) + i
                 condition = (batches_done == 36) or (batches_done % 90 == 0)
-                model.optimize_parameters(condition)
+                model.optimize_parameters(condition, i)
             else:
                 model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
 
