@@ -24,6 +24,20 @@ def get_simpson_mask(img):
 
     return torchvision.transforms.ToTensor()(torchvision.transforms.Grayscale()(torchvision.transforms.ToPILImage()(np.uint8(result1+result2))))
 
+class FeatureExtractor(nn.Module):
+    
+    def __init__(self, vgg19):
+        super().__init__()
+        
+        self.model = torch.nn.ModuleList()
+        for i in range(31):
+            self.model.append(vgg19.features[i])
+        
+    def forward(self, x):
+        for function in self.model: 
+            x = function(x)
+        return x
+
 class Feature2Model(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
@@ -95,9 +109,12 @@ class Feature2Model(BaseModel):
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         
         
-        self.feature_extractor =  models.resnet50(pretrained=True).to(self.device)
-        self.feature_extractor.fc = torch.nn.Identity()
-        self.feature_extractor.avgpool = torch.nn.Identity()
+        #self.feature_extractor =  models.resnet50(pretrained=True).to(self.device)
+        #self.feature_extractor.fc = torch.nn.Identity()
+        #self.feature_extractor.avgpool = torch.nn.Identity()
+        
+        vgg19 = models.vgg19(pretrained=True)
+        self.feature_extractor = FeatureExtractor(vgg19).to(self.device)
         
         self.mask_extractor = mask_extractor.BiSeNet(19).to(self.device)
         self.mask_extractor.load_state_dict(torch.load("79999_iter.pth"))
