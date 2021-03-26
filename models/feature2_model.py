@@ -9,6 +9,7 @@ from . import mask_extractor
 import numpy as np 
 import cv2 as cv
 import torchvision
+import torch.nn as nn
 
 
 def get_simpson_mask(img):
@@ -28,14 +29,13 @@ class FeatureExtractor(nn.Module):
     
     def __init__(self, vgg19):
         super().__init__()
-        
-        self.model = torch.nn.ModuleList()
+        model = []
         for i in range(31):
-            self.model.append(vgg19.features[i])
+            model += [vgg19.features[i]]     
+        self.model = nn.Sequential(*model)
         
     def forward(self, x):
-        for function in self.model: 
-            x = function(x)
+        x = self.model(x)
         return x
 
 class Feature2Model(BaseModel):
@@ -85,7 +85,7 @@ class Feature2Model(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'features_A', 'mssim_A','D_B', 'G_B', 'cycle_B', 'idt_B', 'features_B', 'mssim_B']
+        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'features_A', 'mssim_A','D_B', 'G_B', 'cycle_B', 'idt_B', 'features_B','mssim_B']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -216,6 +216,7 @@ class Feature2Model(BaseModel):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
+        
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
@@ -239,6 +240,9 @@ class Feature2Model(BaseModel):
         features_real_B = self.feature_extractor(self.real_B)
         self.loss_features_A = torch.nn.L1Loss()(features_fake_A, features_real_A)
         self.loss_features_B = torch.nn.L1Loss()(features_fake_B, features_real_B)
+        #
+        #self.loss_featuresDomain_A = torch.nn.L1Loss()(features_fake_A, features_real_B)
+        #self.loss_featuresDomain_B = torch.nn.L1Loss()(features_fake_B, features_real_A)       
 
         # GAN loss D_A(G_A(A))
         self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
@@ -254,14 +258,15 @@ class Feature2Model(BaseModel):
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        # forward
-        self.forward()      # compute fake images and reconstruction images.
-        # G_A and G_B
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
-        self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
-        self.feature_extractor.eval()
-        self.backward_G()             # calculate gradients for G_A and G_B
-        self.optimizer_G.step()       # update G_A and G_B's weights
+        for _ in range(2):
+            # forward
+            self.forward()      # compute fake images and reconstruction images.
+            # G_A and G_
+            self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+            self.feature_extractor.eval()
+            self.backward_G()             # calculate gradients for G_A and G_B
+            self.optimizer_G.step()       # update G_A and G_B's weights
         # D_A and D_B
         self.set_requires_grad([self.netD_A, self.netD_B], True)
         self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
