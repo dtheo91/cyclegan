@@ -146,6 +146,7 @@ class Feature4Model(BaseModel):
         
         vgg19 = models.vgg19(pretrained=True)
         self.feature_extractor = FeatureExtractor2(vgg19).to(self.device)
+        self.feature_extractor.eval()
         
         self.mask_extractor = mask_extractor.BiSeNet(19).to(self.device)
         self.mask_extractor.load_state_dict(torch.load("79999_iter.pth"))
@@ -197,7 +198,12 @@ class Feature4Model(BaseModel):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         
         # FAKE B
-        self.real_mask_A = torch.cat([self.mask_extractor(self.real_A)[0].detach().argmax(1).unsqueeze(0), self.real_A], dim=1)
+        self.real_A = torchvision.transforms.Resize((512, 512))(self.real_A)
+        mask_A = self.mask_extractor(self.real_A)[0].detach().argmax(1).unsqueeze(0)
+        mask_A = torchvision.transforms.Resize((256, 256))(mask_A)
+        self.real_A = torchvision.transforms.Resize((256, 256))(self.real_A)
+        
+        self.real_mask_A = torch.cat([mask_A, self.real_A], dim=1)
         self.fake_B = self.netG_A(self.real_mask_A)  # G_A(A)
         
         # RECONSTRUCTION A
@@ -213,7 +219,11 @@ class Feature4Model(BaseModel):
         self.fake_A = self.netG_B(self.real_mask_B)  # G_B(B)
         
         # RECONSTRUCTION B
-        fake_mask_A  = torch.cat([self.mask_extractor(self.fake_A)[0].detach().argmax(1).unsqueeze(0), self.fake_A], dim=1)
+        self.fake_A = torchvision.transforms.Resize((512, 512))(self.fake_A)
+        mask_A2 = self.mask_extractor(self.fake_A)[0].detach().argmax(1).unsqueeze(0)
+        mask_A2 = torchvision.transforms.Resize((256, 256))(mask_A2)
+        self.fake_A = torchvision.transforms.Resize((256, 256))(self.fake_A)
+        fake_mask_A  = torch.cat([mask_A2, self.fake_A], dim=1)
         self.rec_B = self.netG_A(fake_mask_A)   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
