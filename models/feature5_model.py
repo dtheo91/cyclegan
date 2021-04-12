@@ -136,7 +136,7 @@ class Feature5Model(BaseModel):
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
         self.netG_A = networks.define_G(4, opt.output_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.netG_B = networks.define_G(4, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+        self.netG_B = networks.define_G(3, opt.input_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         
         #self.feature_extractor =  models.resnet50(pretrained=True).to(self.device)
