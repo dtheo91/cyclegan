@@ -1,0 +1,535 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <style> 
+        body {
+            background: #fafafa;
+            color: #333333;
+        }
+
+        ul {
+            margin: 0;
+        }
+
+        .site-header .navbar-nav .nav-link {
+            color: black;
+        }
+
+        .site-header .navbar-nav .nav-link:hover {
+            color: #f5d742;
+        }
+
+        .site-header .navbar-nav .nav-link.active {
+            font-weight: 500;
+        }
+
+        .center {
+          display: block;
+          margin-left: auto;
+          margin-right: auto;
+          width: 50%;
+        }
+
+        .file-upload {
+          background-color: #ffffff;
+          width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+
+        .file-upload-btn {
+          width: 100%;
+          margin: 0;
+          color: #fff;
+          background: #1FB264;
+          border: none;
+          padding: 10px;
+          border-radius: 4px;
+          border-bottom: 4px solid #15824B;
+          transition: all .2s ease;
+          outline: none;
+          text-transform: uppercase;
+          font-weight: 700;
+        }
+
+        .file-upload-btn:hover {
+          background: #1AA059;
+          color: #ffffff;
+          transition: all .2s ease;
+          cursor: pointer;
+        }
+
+        .file-upload-btn:active {
+          border: 0;
+          transition: all .2s ease;
+        }
+
+        .file-upload-content {
+          display: none;
+          text-align: center;
+        }
+
+        .file-upload-input {
+          position: absolute;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          outline: none;
+          opacity: 0;
+          cursor: pointer;
+        }
+
+        .image-upload-wrap {
+          margin-top: 20px;
+          border: 4px dashed #1FB264;
+          position: relative;
+        }
+
+        .image-dropping,
+        .image-upload-wrap:hover {
+          background-color: #1FB264;
+          border: 4px dashed #ffffff;
+        }
+
+        .image-title-wrap {
+          padding: 0 15px 15px 15px;
+          color: #222;
+        }
+
+        .drag-text {
+          text-align: center;
+        }
+
+        .drag-text h3 {
+          font-weight: 100;
+          text-transform: uppercase;
+          color: #15824B;
+          padding: 60px 0;
+        }
+
+        .file-upload-image {
+          max-height: 200px;
+          max-width: 200px;
+          margin: auto;
+          padding: 20px;
+        }
+
+        .remove-image {
+          width: 200px;
+          margin: 0;
+          color: #fff;
+          background: #cd4535;
+          border: none;
+          padding: 10px;
+          border-radius: 4px;
+          border-bottom: 4px solid #b02818;
+          transition: all .2s ease;
+          outline: none;
+          text-transform: uppercase;
+          font-weight: 700;
+        }
+
+        .remove-image:hover {
+          background: #c13b2a;
+          color: #ffffff;
+          transition: all .2s ease;
+          cursor: pointer;
+        }
+
+        .remove-image:active {
+          border: 0;
+          transition: all .2s ease;
+        }
+
+
+        ######
+
+
+        .file-upload2 {
+          background-color: #ffffff;
+          width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+
+        .file-upload-btn2 {
+          width: 100%;
+          margin: 0;
+          color: #fff;
+          background: #1FB264;
+          border: none;
+          padding: 10px;
+          border-radius: 4px;
+          border-bottom: 4px solid #15824B;
+          transition: all .2s ease;
+          outline: none;
+          text-transform: uppercase;
+          font-weight: 700;
+        }
+
+        .file-upload-btn2:hover {
+          background: #1AA059;
+          color: #ffffff;
+          transition: all .2s ease;
+          cursor: pointer;
+        }
+
+        .file-upload-btn2:active {
+          border: 0;
+          transition: all .2s ease;
+        }
+
+        .file-upload-content2 {
+          display: none;
+          text-align: center;
+        }
+
+        .file-upload-input2 {
+          position: absolute;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          outline: none;
+          opacity: 0;
+          cursor: pointer;
+        }
+
+        .image-upload-wrap2 {
+          margin-top: 20px;
+          border: 4px dashed #1FB264;
+          position: relative;
+        }
+
+        .image-dropping2,
+        .image-upload-wrap2:hover {
+          background-color: #1FB264;
+          border: 4px dashed #ffffff;
+        }
+
+        .image-title-wrap2 {
+          padding: 0 15px 15px 15px;
+          color: #222;
+        }
+
+        .drag-text2 {
+          text-align: center;
+        }
+
+        .drag-text2 h3 {
+          font-weight: 100;
+          text-transform: uppercase;
+          color: #15824B;
+          padding: 60px 0;
+        }
+
+        .file-upload-image2 {
+          max-height: 200px;
+          max-width: 200px;
+          margin: auto;
+          padding: 20px;
+        }
+
+        .remove-image2 {
+          width: 200px;
+          margin: 0;
+          color: #fff;
+          background: #cd4535;
+          border: none;
+          padding: 10px;
+          border-radius: 4px;
+          border-bottom: 4px solid #b02818;
+          transition: all .2s ease;
+          outline: none;
+          text-transform: uppercase;
+          font-weight: 700;
+        }
+
+        .remove-image2:hover {
+          background: #c13b2a;
+          color: #ffffff;
+          transition: all .2s ease;
+          cursor: pointer;
+        }
+
+        .remove-image2:active {
+          border: 0;
+          transition: all .2s ease;
+        }
+
+        #######
+        /* Safari */
+        @-webkit-keyframes spin {
+          0% { -webkit-transform: rotate(0deg); }
+          100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+    </style>
+
+    <!-- FONTS -->
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&display=swap" rel="stylesheet">
+
+    <title>Deep Learning Project</title>
+</head>
+
+<body style="font-family: 'Oswald', sans-serif; font-size=20px;">
+    <header class="site-header">
+        <nav class="navbar navbar-expand-md navbar-light bg-light fixed-top" style="border-bottom: 2px solid black;">
+        <div class="container">
+            <a class="navbar-brand mr-4" href="#">DeepTransform</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarToggle" aria-controls="navbarToggle" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarToggle">
+            <div class="navbar-nav mr-auto">
+                <a target="_blank" class="nav-item nav-link" href="https://hardikbansal.github.io/CycleGANBlog">About CycleGAN</a>
+                <a target="_blank" class="nav-item nav-link" href="https://www.github.com/dtheo91/cyclegan">GitHub Repository</a>
+            </div>
+            </div>
+        </div>
+        </nav>
+    </header>
+    
+    <img src="static/banner_try1.gif" class="img-fluid" alt="Responsive image" style="border-bottom: 2px solid black;">
+
+    <main role="main" class="container" style="background-color:white; padding-top:50px; border-left: 1px solid #000; border-right: 1px solid #000;">
+        
+        <p style="font-weight: bold; font-size: 200%; margin-bottom:50px; text-align:center;">How it works</p>
+        
+        <div class="container">
+          <div class="row">
+                <div class="col-sm">
+                    <img src="static/new_one.png" alt="Responsive image" height="50" width="50" style="display: block; margin-left: auto; margin-right: auto;">
+                    <p style="text-align:center; margin-top:5px; font-size:24px;">Select your image</p>
+                     <div class="file-upload" style="width: 75%;">
+                      <button class="file-upload-btn" type="button" onclick="$('.file-upload-input').trigger( 'click' )">Add Image</button>
+
+                      <div class="image-upload-wrap">
+                        <input class="file-upload-input" type='file' onchange="readURL(this);" accept="image/*" />
+                        <div class="drag-text">
+                          <h3>Drag and drop a file or select add Image</h3>
+                        </div>
+                      </div>
+                      <div class="file-upload-content">
+                        <img class="file-upload-image" src="#" alt="your image" />
+                        <div class="image-title-wrap" style="padding: 5px;">
+                          <button type="button" onclick="removeUpload()" class="remove-image">Remove <span class="image-title">Uploaded Image</span></button>
+                        </div>
+                      </div>
+                    </div>    
+                </div>
+              
+                <div class="col-sm">
+                    <img src="static/two.png" alt="Responsive image" height="50" width="50" style="display: block; margin-left: auto; margin-right: auto;">
+                    <p style="text-align:center; margin-top:5px; font-size:24px;">Select domain</p>
+                    <div class="btn-group-vertical btn-group-lg" role="group" aria-label="Basic example" style="margin: auto; display: flex; justify-content: center; top:15%;">
+                      <button type="button" id="simpson" class="btn btn-secondary" onclick="setColor('simpson')">Simpson</button>
+                      <button type="button" id="manga" class="btn btn-secondary" onclick="setColor('manga')">Manga</button>
+                      <button type="button" id="cartoon" class="btn btn-secondary" onclick="setColor('cartoon')">Cartoon</button>
+                      <button type="button" id="sketch" class="btn btn-secondary" onclick="setColor('sketch')">Sketch</button>
+                    </div>
+                </div>
+              
+                <div class="col-sm">
+                    <img src="static/three.png" alt="Responsive image" height="50" width="50" style="display: block; margin-left: auto; margin-right: auto;">
+                    <p style="text-align:center; margin-top:5px; font-size:24px;">Transform your image</p>
+                     <div class="file-upload" style="width: 75%;">
+                      <button class="file-upload-btn2" type="button" onclick="run_function()">Transform</button>
+
+                     <!--<div class="image-upload-wrap2">
+                        <input class="file-upload-input2" type='file' onchange="readURL(this);" accept="image/*" />
+                        <div class="drag-text2">
+                          <h3>Drag and drop a file or select add Image</h3>
+                        </div>
+                      </div>  <div class="loader"></div>-->
+                    <div class="loader" style="border: 16px solid #f3f3f3; border-radius: 50%; border-top: 16px solid #3498db; width: 120px; height: 120px; -webkit-animation: spin 2s linear infinite; animation: spin 2s linear infinite; margin-top:50px; position:absolute; left:35%; display:none;"></div>
+                      <div class="file-upload-content2">
+                        <img class="file-upload-image2" src="#" alt="your image" />
+                        <div class="image-title-wrap2" style="padding: 5px;">
+                          <button type="button" onclick="download()" class="remove-image2">Download</button>
+                        </div>
+                      </div>
+                    </div>    
+                </div>
+            </div>
+        </div>
+        
+        <div class="container" style="padding-top:50px;">
+            <p style="font-weight: bold; font-size: 200%; margin-bottom:75px; text-align:center;">Trust our reviews</p>
+        </div>
+        
+        <div id="carouselExampleControls" class="carousel slide" data-ride="carousel" style="padding-left:200px; padding-right:200px;">
+              <div class="carousel-inner" style="min-height:250px;">
+                    <div class="carousel-item active">
+                         <!-- Carousel Item Here -->
+                            <div style="display: flex; align-items: center; justify-content: center">
+                                <div>
+                                    <img class="d-block w-100" src="static/goldblum.png" alt="First slide" class="img-fluid" style="max-height:600px; max-width:600px; border-radius: 50%;">
+                                </div>
+                                <div style="font-size: 20px; padding-left: 20px;">
+                                    <p>"Your scientists were so preoccupied with whether or not they could, they didn’t stop to think if they should."</p>
+                                    <p style="text-indent: 5em; font-size: 19px;"><i>Ian Malcom</i></p>
+                                 </div>
+                            </div>
+                        <!-- End-->
+                    </div>
+                  <!-- End Item-->
+                  <div class="carousel-item">
+                         <!-- Carousel Item Here -->
+                            <div style="display: flex; align-items: center; justify-content: center">
+                                <div>
+                                    <img class="d-block w-100" src="static/morpheus.jpg" alt="First slide" class="img-fluid" style="max-height:600px; max-width:600px; border-radius: 50%;">
+                                </div>
+                                <div style="font-size: 20px; padding-left: 20px;">
+                                    <p>"You have to understand, most people are not ready to be unplugged..."</p>
+                                    <p style="text-indent: 5em; font-size: 19px;"><i>Morpheus</i></p>
+                                 </div>
+                            </div>
+                        <!-- End-->
+                    </div>
+                  <!-- End Item-->
+                </div>
+          <a class="carousel-control-prev" href="#carouselExampleControls" role="button" data-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="sr-only">Previous</span>
+          </a>
+          <a class="carousel-control-next" href="#carouselExampleControls" role="button" data-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="sr-only">Next</span>
+          </a>
+        </div>
+        
+    </main>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        var count = [0,0,0,0]
+        var btn_chosen = "None"
+        var image = "None"
+        var transformedImage = "None"
+        
+        function readURL(input) {
+          if (input.files && input.files[0]) {
+
+            var reader = new FileReader();
+
+            reader.onload = function(e) {
+              $('.image-upload-wrap').hide();
+
+              $('.file-upload-image').attr('src', e.target.result);
+              $('.file-upload-content').show();
+
+              $('.image-title').html(input.files[0].name);
+              image = e.target.result
+            };
+
+            reader.readAsDataURL(input.files[0]);
+
+          } else {
+            removeUpload();
+          }
+        }
+
+        function removeUpload() {
+          $('.file-upload-input').replaceWith($('.file-upload-input').clone());
+          $('.file-upload-content').hide();
+          $('.image-upload-wrap').show();
+        }
+        $('.image-upload-wrap').bind('dragover', function () {
+            $('.image-upload-wrap').addClass('image-dropping');
+          });
+          $('.image-upload-wrap').bind('dragleave', function () {
+            $('.image-upload-wrap').removeClass('image-dropping');
+        });
+
+        function run_function(){
+            console.log("running");
+            $('.loader').show();
+            $.ajax({
+                url : "/somefunction",
+                type : "GET", 
+                data : { param_first : btn_chosen,
+                         param_second: image},
+                contentType: "image/*",
+                
+                success : function(json) {
+                    $('.file-upload-image2').attr('src', 'data:image/png;base64,' + json.image);
+                    $('.loader').hide();
+                    $('.file-upload-content2').show();
+                    $('.image-title2').html(image.name);
+                    console.log(json.reply); 
+                    console.log(json.image)
+                    transformedImage = 'data:image/png;base64,' + json.image
+                },
+                error : function(xhr,errmsg,err) {
+                    console.log(xhr.status + ": " + xhr.responseText);
+                }
+            });
+        };
+        
+        function setColor(btn) {
+            property = document.getElementById(btn)
+            buttons = ["simpson", "manga", "cartoon", "sketch"]
+            btn_index = buttons.indexOf(btn)
+            
+            if (count[btn_index] == 0) {
+                if (buttons[btn_index] == "simpson") {
+                    property.style.backgroundColor = "#f5d742"
+                }
+                if (buttons[btn_index] == "manga") {
+                    property.style.backgroundColor = "#cc0099"
+                }
+                if (buttons[btn_index] == "cartoon") {
+                    property.style.backgroundColor = "#ff9900"
+                }
+                if (buttons[btn_index] == "sketch") {
+                    property.style.backgroundColor = "#0000cc"
+                }
+                btn_chosen = btn
+                for (i = 0; i < buttons.length; i++) {
+                    if (buttons[i] != btn) {
+                        document.getElementById(buttons[i]).style.backgroundColor = "#6c757d"
+                        count[i] = 0
+                    }
+                }
+                count[btn_index] = 1   
+            }
+            else {
+                property.style.backgroundColor = "#6c757d"
+                count[btn_index] = 0
+                btn_chosen = "None"
+            }
+        }
+        
+        async function download() {
+            const a = document.createElement("a");
+            a.href = await transformedImage;
+            a.download = "TransformedImage.png";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+    </script>
+</body>
+
+</html>
