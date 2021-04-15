@@ -154,8 +154,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'gokaslan':
-        #net = Generator_Gokaslan(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=3)
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+        net = Generator_Gokaslan(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=3)
+        #net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
         #net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
@@ -770,7 +770,7 @@ class Discriminator_Gokaslan(nn.Module):
         l9 = self.layer9(l8)
         l10 = self.layer10(l9)
 
-        return l10 #, (l2, l3, l4, l5, l6, l7, l9) 
+        return l10, (l2, l3, l4, l5, l6, l7, l9) 
     
 ##############################################################################
 # GOKASLAN - UTILS

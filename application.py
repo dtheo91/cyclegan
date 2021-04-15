@@ -54,7 +54,7 @@ def some_func():
             model = torch.load("generator_manga.pt")
             model.eval()
         elif button_id == "cartoon":
-            model = torch.load("generator_simpson.pt")
+            model = torch.load("generator_cartoon.pt")
             model.eval()
         elif button_id == "sketch":
             model = torch.load("generator_sketch.pt")

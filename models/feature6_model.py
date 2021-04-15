@@ -3,10 +3,73 @@ import itertools
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
+from torchvision import models
 from . import mssim
+from . import mask_extractor
+import numpy as np 
+import cv2 as cv
+import torchvision
+import torch.nn as nn
 
 
-class GokaslanModel(BaseModel):
+def get_simpson_mask(img):
+    lower_range = np.array([100, 100 ,0])  # Set the Lower range value of color in BGR
+    upper_range = np.array([255,217,15])   # Set the Upper range value of color in BGR
+    mask = cv.inRange(img,lower_range,upper_range) # Create a mask with range
+    result1 = cv.bitwise_and(img,img,mask = mask)
+    
+    lower_range = np.array([200, 200 ,200])  # Set the Lower range value of color in BGR
+    upper_range = np.array([255,255,255])   # Set the Upper range value of color in BGR
+    mask = cv.inRange(img,lower_range,upper_range) # Create a mask with range
+    result2 = cv.bitwise_and(img,img,mask = mask)
+
+    return torchvision.transforms.ToTensor()(torchvision.transforms.Grayscale()(torchvision.transforms.ToPILImage()(np.uint8(result1+result2))))
+
+class FeatureExtractor(nn.Module):
+    
+    def __init__(self, vgg19):
+        super().__init__()
+        self.model = torch.nn.ModuleList()
+        for i in range(31):
+            self.model.append(vgg19.features[i])
+        
+    def forward(self, x):
+        feature_list = []
+        gram_list = []
+        for function in self.model: 
+            x = function(x)
+            feature_list.append(x)
+            flatten_feature = torch.flatten(x.squeeze(0), start_dim=1, end_dim=2)
+            gram_matrix = torch.matmul(flatten_feature,flatten_feature.transpose(0,1))
+            gram_list.append(gram_matrix)
+            
+        return (feature_list, gram_list)
+    
+class FeatureExtractor2(nn.Module):
+    
+    def __init__(self, vgg19):
+        super().__init__()
+        self.model = torch.nn.ModuleList()
+        for i in range(31):
+            self.model.append(vgg19.features[i])
+            
+        self.pool = torch.nn.AvgPool2d(2)
+        
+    def forward(self, x):
+        #feature_list = []
+        #gram_list = []
+        for function in self.model: 
+            x = function(x)
+            #feature_list.append(x)
+            
+        pooled = self.pool(x)
+        flatten_feature = torch.flatten(pooled.squeeze(0), start_dim=1, end_dim=2)
+        gram_matrix = torch.matmul(flatten_feature,flatten_feature.transpose(0,1))
+        #gram_list.append(gram_matrix)
+            
+        return (x, gram_matrix) # (feature_list, gram_list)
+
+class Feature6Model(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
@@ -42,12 +105,6 @@ class GokaslanModel(BaseModel):
             parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
             parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
-            
-            parser.add_argument('--lambda_GAN', type=float, default=0.49, help='Weight for Generator Loss')
-            parser.add_argument('--lambda_FM', type=float, default=0.21, help='Weight for Feature Loss')
-            parser.add_argument('--lambda_CYC', type=float, default=0.3, help='Weight for Cycle Loss')
-            parser.add_argument('--lambda_SS', type=float, default=0.7, help='Weight for SS Loss')
-            parser.add_argument('--lambda_L1', type=float, default=0.3, help='Weight for L1 Loss')
 
         return parser
 
@@ -59,7 +116,7 @@ class GokaslanModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_A', 'G_A', 'mssim_A', 'fm_A', 'idt_A', 'D_B', 'G_B', 'mssim_B', 'fm_B', 'idt_B']
+        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'features_A', 'gram_A', 'mssim_A','D_B', 'G_B', 'cycle_B', 'idt_B', 'features_B', 'gram_B','mssim_B']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -77,15 +134,35 @@ class GokaslanModel(BaseModel):
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+        self.netG_A = networks.define_G(4, opt.output_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+        self.netG_B = networks.define_G(4, opt.input_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-
+        
+        
+        #self.feature_extractor =  models.resnet50(pretrained=True).to(self.device)
+        #self.feature_extractor.fc = torch.nn.Identity()
+        #self.feature_extractor.avgpool = torch.nn.Identity()
+        
+        vgg19 = models.vgg19(pretrained=True)
+        self.feature_extractor = FeatureExtractor2(vgg19).to(self.device)
+        self.feature_extractor.eval()
+        
+        self.mask_extractor = mask_extractor.BiSeNet(19).to(self.device)
+        self.mask_extractor.load_state_dict(torch.load("79999_iter.pth"))
+        self.mask_extractor.eval()
+        
+        self.mask_extractor2 = mask_extractor.BiSeNet(9).to(self.device)
+        self.mask_extractor2.load_state_dict(torch.load("../face-parsing.PyTorch/checkpoints/model_final_diss.pth"))
+        self.mask_extractor2.eval()
+        
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
+        
         if self.isTrain:  # define discriminators
-            self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
+            self.netD_A = networks.define_D(4, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
-            self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
+            self.netD_B = networks.define_D(4, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -119,10 +196,35 @@ class GokaslanModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.fake_B = self.netG_A(self.real_A)  # G_A(A)
-        self.rec_A = self.netG_B(self.fake_B)   # G_B(G_A(A))
-        self.fake_A = self.netG_B(self.real_B)  # G_B(B)
-        self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
+        
+        # FAKE B
+        self.real_A = torchvision.transforms.Resize((512, 512))(self.real_A)
+        mask_A = self.mask_extractor(self.real_A)[0].detach().argmax(1).unsqueeze(0)
+        mask_A = torchvision.transforms.Resize((256, 256))(mask_A)
+        self.real_A = torchvision.transforms.Resize((256, 256))(self.real_A)
+        
+        self.real_mask_A = torch.cat([mask_A, self.real_A], dim=1)
+        self.fake_B = self.netG_A(self.real_mask_A)  # G_A(A)
+        
+        # RECONSTRUCTION A
+        #fake_mask_B = ((self.fake_B + 1) * 255 / 2).long()
+        #fake_mask_B = torch.cat([get_simpson_mask(fake_mask_B.squeeze(0).transpose(0,2).detach().cpu().numpy()).unsqueeze(0).to(self.device), self.fake_B], dim=1)
+        self.fake_mask_B = torch.cat([self.mask_extractor2(self.fake_B)[0].detach().argmax(1).unsqueeze(0), self.fake_B], dim=1)
+        self.rec_A = self.netG_B(self.fake_mask_B)   # G_B(G_A(A))
+        
+        # FAKE A
+        #real_mask_B = ((self.real_B + 1) * 255 / 2).long()
+        #self.real_mask_B = torch.cat([get_simpson_mask(real_mask_B.squeeze(0).transpose(0,2).detach().cpu().numpy()).unsqueeze(0).to(self.device), self.real_B], dim=1)
+        self.real_mask_B = torch.cat([self.mask_extractor2(self.real_B)[0].detach().argmax(1).unsqueeze(0), self.real_B], dim=1)
+        self.fake_A = self.netG_B(self.real_mask_B)  # G_B(B)
+        
+        # RECONSTRUCTION B
+        self.fake_A = torchvision.transforms.Resize((512, 512))(self.fake_A)
+        mask_A2 = self.mask_extractor(self.fake_A)[0].detach().argmax(1).unsqueeze(0)
+        mask_A2 = torchvision.transforms.Resize((256, 256))(mask_A2)
+        self.fake_A = torchvision.transforms.Resize((256, 256))(self.fake_A)
+        self.fake_mask_A  = torch.cat([mask_A2, self.fake_A], dim=1)
+        self.rec_B = self.netG_A(self.fake_mask_A)   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -136,10 +238,10 @@ class GokaslanModel(BaseModel):
         We also call loss_D.backward() to calculate the gradients.
         """
         # Real
-        pred_real, _ = netD(real)
+        pred_real = netD(real)
         loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
-        pred_fake, _ = netD(fake.detach())
+        pred_fake = netD(fake.detach())
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake) * 0.5
@@ -148,79 +250,70 @@ class GokaslanModel(BaseModel):
 
     def backward_D_A(self):
         """Calculate GAN loss for discriminator D_A"""
-        fake_B = self.fake_B_pool.query(self.fake_B)
-        self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
+        fake_mask_B = self.fake_B_pool.query(self.fake_mask_B)
+        self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_mask_B, fake_mask_B)
 
     def backward_D_B(self):
         """Calculate GAN loss for discriminator D_B"""
-        fake_A = self.fake_A_pool.query(self.fake_A)
-        self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+        fake_mask_A = self.fake_A_pool.query(self.fake_mask_A)
+        self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_mask_A, fake_mask_A)
 
-    def backward_G(self, condition):
+    def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
-        
-        lambda_gan = self.opt.lambda_GAN
-        lambda_fm = self.opt.lambda_FM
-        lambda_cyc = self.opt.lambda_CYC
-        lambda_ss = self.opt.lambda_SS
-        lambda_l1 = self.opt.lambda_L1
-        
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
-            self.idt_A = self.netG_A(self.real_B)
+            self.idt_A = self.netG_A(self.real_mask_B)
             self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed: ||G_B(A) - A||
-            self.idt_B = self.netG_B(self.real_A)
+            self.idt_B = self.netG_B(self.real_mask_A)
             self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
         else:
             self.loss_idt_A = 0
             self.loss_idt_B = 0
             
-        # Reconstruction loss
-        self.loss_mssim_A = 1 - self.msssim(self.rec_A, self.real_A)
-        #self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) #* lambda_A
-        self.loss_mssim_B = 1 - self.msssim(self.rec_B, self.real_B)
-        #self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) #* lambda_B
-        self.loss_recon_normalized = networks.normalise_loss(lambda_ss*(self.loss_mssim_A + self.loss_mssim_B) + lambda_l1*(self.loss_idt_A + self.loss_idt_B), condition) #lambda_l1*(self.loss_cycle_A + self.loss_cycle_B)
-      
-        # Feature Matching loss
-        _, real_A_features = self.netD_B(self.real_A)
-        fake_A, fake_A_features = self.netD_B(self.fake_A)
-        self.loss_fm_A = networks.feature_match_loss(real_A_features, fake_A_features, self.device)
-        _, real_B_features = self.netD_A(self.real_B)
-        fake_B, fake_B_features = self.netD_A(self.fake_B)
-        self.loss_fm_B = networks.feature_match_loss(real_B_features, fake_B_features, self.device)
-        self.loss_fm_normalized = networks.normalise_loss(self.loss_fm_A + self.loss_fm_B, condition)
+        # MSSIM LOSS 
+        self.loss_mssim_A = (1 - self.msssim(self.rec_A, self.real_A)) * lambda_A
+        self.loss_mssim_B = (1 - self.msssim(self.rec_B, self.real_B)) * lambda_B
+            
+        # Feature Loss 
+        features_fake_A, gram_matrix_fake_A = self.feature_extractor(self.fake_A)
+        features_real_A, gram_matrix_real_A = self.feature_extractor(self.real_A)
+        features_fake_B, gram_matrix_fake_B = self.feature_extractor(self.fake_B)
+        features_real_B, gram_matrix_real_B = self.feature_extractor(self.real_B)
+        
+        self.loss_features_A = torch.nn.L1Loss()(features_fake_A, features_real_A)
+        self.loss_features_B = torch.nn.L1Loss()(features_fake_B, features_real_B)
+        self.loss_gram_A = torch.nn.L1Loss()(gram_matrix_fake_A, gram_matrix_real_A) / 100
+        self.loss_gram_B = torch.nn.L1Loss()(gram_matrix_fake_B, gram_matrix_real_B) / 100 
 
         # GAN loss D_A(G_A(A))
-        self.loss_G_A = self.criterionGAN(fake_B, True)
+        self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_mask_B), True)
         # GAN loss D_B(G_B(B))
-        self.loss_G_B = self.criterionGAN(fake_A, True)
-        self.loss_gan_normalized = networks.normalise_loss(self.loss_G_A + self.loss_G_B, condition)
-        
+        self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_mask_A), True)
         # Forward cycle loss || G_B(G_A(A)) - A||
-        #self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
+        self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         # Backward cycle loss || G_A(G_B(B)) - B||
-        #self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+        self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         # combined loss and calculate gradients
-        #self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
-        self.loss_G = lambda_gan*self.loss_gan_normalized + lambda_fm*self.loss_fm_normalized + lambda_cyc*self.loss_recon_normalized
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_features_A + self.loss_features_B + self.loss_mssim_A + self.loss_mssim_B + self.loss_gram_A + self.loss_gram_B
         self.loss_G.backward()
 
-    def optimize_parameters(self, condition, i):
+    def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
-        # forward
-        self.forward()      # compute fake images and reconstruction images.
-        # G_A and G_B
-        #if i % 3:
+        torch.autograd.set_detect_anomaly(True)
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
-        self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
-        self.backward_G(condition)             # calculate gradients for G_A and G_B
-        self.optimizer_G.step()       # update G_A and G_B's weights
+        for _ in range(2):
+            # forward
+            self.forward()      # compute fake images and reconstruction images.
+            # G_A and G_B
+            self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+            self.feature_extractor.eval()
+            self.backward_G()             # calculate gradients for G_A and G_B
+            self.optimizer_G.step()       # update G_A and G_B's weights
         # D_A and D_B
         self.set_requires_grad([self.netD_A, self.netD_B], True)
         self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
